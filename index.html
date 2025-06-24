@@ -965,4 +965,505 @@
                 </>
               )}
             </button>
-            {generatedCont
+            {generatedContent && (
+              <div className="bg-gray-100 p-4 rounded-md border border-gray-200 mt-4">
+                <p className="font-semibold mb-2">Conteúdo Gerado:</p>
+                <textarea
+                  className="w-full h-40 p-2 border border-gray-300 rounded-md resize-y"
+                  value={generatedContent}
+                  readOnly
+                ></textarea>
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(generatedContent);
+                    showToast('Resposta copiada!', 'success');
+                  }}
+                  className="mt-2 bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-200"
+                >
+                  Copiar
+                </button>
+              </div>
+            )}
+          </Modal>
+
+          <Modal isOpen={showQuizQuestionModal} onClose={() => setShowQuizQuestionModal(false)} title="Sugerir Perguntas de Quiz com IA">
+            <p className="mb-4 text-gray-700">Insira um tópico para que a IA gere perguntas de quiz sobre biogás.</p>
+            <input
+              type="text"
+              className="w-full p-3 border border-gray-300 rounded-md mb-4 focus:ring-green-500 focus:border-green-500"
+              placeholder="Ex: Produção de metano"
+              value={quizTopic}
+              onChange={(e) => setQuizTopic(e.target.value)}
+            />
+            <button
+              onClick={handleGenerateQuizQuestions}
+              className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg flex items-center justify-center shadow-md transition duration-200 mb-4"
+              disabled={isGeneratingQuizQuestions}
+            >
+              {isGeneratingQuizQuestions ? (
+                 <>
+                  <div className="animate-spin mr-2 w-5 h-5 border-2 border-white border-t-transparent rounded-full"></div>
+                  <span>Gerando...</span>
+                </>
+              ) : (
+                <>
+                  <SparklesIcon className="mr-2" size={20} /> Sugerir Perguntas
+                </>
+              )}
+            </button>
+            {generatedQuizQuestions && (
+              <div className="bg-gray-100 p-4 rounded-md border border-gray-200 mt-4">
+                <p className="font-semibold mb-2">Perguntas Sugeridas:</p>
+                <textarea
+                  className="w-full h-40 p-2 border border-gray-300 rounded-md resize-y"
+                  value={generatedQuizQuestions}
+                  readOnly
+                ></textarea>
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(generatedQuizQuestions);
+                    showToast('Perguntas copiadas!', 'success');
+                  }}
+                  className="mt-2 bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-200"
+                >
+                  Copiar
+                </button>
+              </div>
+            )}
+          </Modal>
+        </React.Fragment> 
+      );
+    };
+
+    const UserManagement = ({ showToast }) => {
+      // Dados mock de usuários
+      const [users, setUsers] = useState([
+        { id: 1, name: 'João Silva', email: 'joao.silva@example.com', status: 'Ativo' },
+        { id: 2, name: 'Maria Souza', email: 'maria.souza@example.com', status: 'Ativo' },
+        { id: 3, name: 'Pedro Santos', email: 'pedro.santos@example.com', status: 'Inativo' },
+        { id: 4, name: 'Ana Costa', email: 'ana.costa@example.com', status: 'Ativo' },
+      ]);
+
+      const toggleUserStatus = (id) => {
+        setUsers(prevUsers =>
+          prevUsers.map(user =>
+            user.id === id
+              ? { ...user, status: user.status === 'Ativo' ? 'Inativo' : 'Ativo' }
+              : user
+          )
+        );
+        showToast('Status do usuário atualizado.', 'success');
+      };
+
+      const deleteUser = (id) => {
+        if (window.confirm(`Tem certeza que deseja excluir o usuário ID: ${id}?`)) {
+          setUsers(prevUsers => prevUsers.filter(user => user.id !== id));
+          showToast('Usuário excluído com sucesso.', 'success');
+        }
+      };
+
+      return (
+        <div className="bg-white p-6 rounded-lg shadow-xl">
+          <h2 className="text-3xl font-bold text-gray-800 mb-6">Gestão de Usuários</h2>
+
+          <div className="overflow-x-auto">
+            <table className="min-w-full bg-white rounded-lg overflow-hidden shadow-md">
+              <thead className="bg-gray-100 border-b border-gray-200">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nome</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ações</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {users.map(user => (
+                  <tr key={user.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{user.name}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{user.email}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm">
+                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full
+                        ${user.status === 'Ativo' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}
+                      `}>
+                        {user.status}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                      <div className="flex space-x-2">
+                        <ActionButton
+                          icon={user.status === 'Ativo' ? <XCircleIcon className="w-5 h-5" /> : <CheckCircleIcon className="w-5 h-5" />}
+                          onClick={() => toggleUserStatus(user.id)}
+                          tooltip={user.status === 'Ativo' ? 'Inativar' : 'Ativar'}
+                          className={user.status === 'Ativo' ? 'bg-yellow-500 hover:bg-yellow-600' : 'bg-green-500 hover:bg-green-600'}
+                        />
+                        <ActionButton
+                          icon={<Trash2Icon className="w-5 h-5" />}
+                          onClick={() => deleteUser(user.id)}
+                          tooltip="Excluir"
+                          className="bg-red-500 hover:bg-red-600"
+                        />
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      );
+    };
+
+    const UserDoubts = ({ showToast }) => {
+      const [doubts, setDoubts] = useState([
+        { id: 1, user: 'Usuário A', subject: 'Dúvida sobre dimensionamento', message: 'Qual o tamanho ideal do biodigestor para minha fazenda?', status: 'Pendente' },
+        { id: 2, user: 'Usuário B', subject: 'Sugestão de conteúdo', message: 'Gostaria de ver mais sobre o uso do biogás em veículos.', status: 'Pendente' },
+        { id: 3, user: 'Usuário C', subject: 'Problema com quiz', message: 'A pergunta 3 do quiz básico está com a resposta errada.', status: 'Resolvido' },
+      ]);
+
+      const [showReplySuggestionModal, setShowReplySuggestionModal] = useState(false);
+      const [currentDoubtMessage, setCurrentDoubtMessage] = useState('');
+      const [suggestedReply, setSuggestedReply] = useState('');
+      const [isSuggestingReply, setIsSuggestingReply] = useState(false);
+
+      const markAsResolved = (id) => {
+        setDoubts(prevDoubts =>
+          prevDoubts.map(doubt =>
+            doubt.id === id ? { ...doubt, status: 'Resolvido' } : doubt
+          )
+        );
+        showToast('Dúvida marcada como resolvida.', 'success');
+      };
+
+      const replyToDoubt = (id, user) => {
+        showToast(`Funcionalidade de responder ao usuário ${user} sobre a dúvida ID: ${id}. Um campo de texto para resposta apareceria aqui.`, 'info');
+      };
+      
+      const handleSuggestReply = async () => {
+        if (!currentDoubtMessage.trim()) {
+          showToast('Nenhuma mensagem de dúvida selecionada para sugerir resposta.', 'info');
+          return;
+        }
+        setIsSuggestingReply(true);
+        setSuggestedReply('');
+
+        try {
+          const response = await fetch(`${BACKEND_URL}/generate-reply-ai`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message: currentDoubtMessage }),
+          });
+          const result = await response.json();
+
+          if (response.ok && result.success) {
+            setSuggestedReply(result.reply);
+            showToast('Resposta sugerida com sucesso!', 'success');
+          } else {
+             showToast(result.error || 'Não foi possível sugerir uma resposta. Tente novamente.', 'error');
+          }
+        } catch (error) {
+          console.error('Erro ao chamar a API para sugestão de resposta:', error);
+          showToast('Erro ao sugerir resposta. Verifique sua conexão ou tente mais tarde.', 'error');
+        } finally {
+          setIsSuggestingReply(false);
+        }
+      };
+
+
+      return (
+        <div className="bg-white p-6 rounded-lg shadow-xl">
+          <h2 className="text-3xl font-bold text-gray-800 mb-6">Dúvidas e Sugestões dos Usuários</h2>
+
+          <div className="space-y-4">
+            {doubts.map(doubt => (
+              <div key={doubt.id} className="bg-gray-50 p-5 rounded-lg border border-gray-200 shadow-sm">
+                <div className="flex justify-between items-center mb-2">
+                  <h3 className="font-bold text-lg text-gray-800">{doubt.subject}</h3>
+                  <span className={`px-3 py-1 rounded-full text-xs font-semibold
+                    ${doubt.status === 'Pendente' ? 'bg-orange-100 text-orange-800' : 'bg-green-100 text-green-800'}
+                  `}>
+                    {doubt.status}
+                  </span>
+                </div>
+                <p className="text-sm text-gray-700 mb-3">De: {doubt.user}</p>
+                <p className="text-gray-600 mb-4">{doubt.message}</p>
+                <div className="flex flex-wrap gap-2">
+                  {doubt.status === 'Pendente' && (
+                    <>
+                      <button
+                        onClick={() => replyToDoubt(doubt.id, doubt.user)}
+                        className="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-200"
+                      >
+                        Responder
+                      </button>
+                      <button
+                        onClick={() => {
+                          setCurrentDoubtMessage(doubt.message);
+                          setShowReplySuggestionModal(true);
+                        }}
+                        className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg flex items-center shadow-md transition duration-200"
+                      >
+                        <SparklesIcon className="w-5 h-5 mr-2" /> Sugerir Resposta
+                      </button>
+                      <button
+                        onClick={() => markAsResolved(doubt.id)}
+                        className="bg-green-500 hover:bg-green-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-200"
+                      >
+                        Marcar como Resolvido
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <Modal isOpen={showReplySuggestionModal} onClose={() => setShowReplySuggestionModal(false)} title="Sugerir Resposta com IA">
+            <p className="mb-4 text-gray-700">Mensagem do usuário:</p>
+            <div className="bg-gray-100 p-3 rounded-md border border-gray-200 mb-4">
+              <p className="text-sm text-gray-800">{currentDoubtMessage}</p>
+            </div>
+            <button
+              onClick={handleSuggestReply}
+              className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg flex items-center justify-center shadow-md transition duration-200 mb-4"
+              disabled={isSuggestingReply}
+            >
+              {isSuggestingReply ? (
+                <>
+                  <div className="animate-spin mr-2 w-5 h-5 border-2 border-white border-t-transparent rounded-full"></div>
+                  <span>Gerando Sugestão...</span>
+                </>
+              ) : (
+                <>
+                  <SparklesIcon className="mr-2" size={20} /> Sugerir Resposta
+                </>
+              )}
+            </button>
+            {suggestedReply && (
+              <div className="bg-gray-100 p-4 rounded-md border border-gray-200 mt-4">
+                <p className="font-semibold mb-2">Resposta Sugerida:</p>
+                <textarea
+                  className="w-full h-40 p-2 border border-gray-300 rounded-md resize-y"
+                  value={suggestedReply}
+                  readOnly
+                ></textarea>
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(suggestedReply);
+                    showToast('Resposta copiada!', 'success');
+                  }}
+                  className="mt-2 bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-200"
+                >
+                  Copiar
+                </button>
+              </div>
+            )}
+          </Modal>
+        </div>
+      );
+    };
+
+    const Reports = ({ showToast }) => {
+      const [selectedRegion, setSelectedRegion] = useState('');
+      const [selectedUsageType, setSelectedUsageType] = useState('');
+      const [reportGenerated, setReportGenerated] = useState(false);
+
+      const generateReport = () => {
+        if (!selectedRegion && !selectedUsageType) {
+          showToast('Por favor, selecione uma região ou tipo de uso para gerar o relatório.', 'info');
+          return;
+        }
+        setReportGenerated(true);
+        showToast(`Relatório gerado para Região: ${selectedRegion || 'Todas'}, Tipo de Uso: ${selectedUsageType || 'Todos'}.`, 'success');
+      };
+
+      return (
+        <div className="bg-white p-6 rounded-lg shadow-xl">
+          <h2 className="text-3xl font-bold text-gray-800 mb-6">Relatórios</h2>
+
+          <div className="mb-6 bg-gray-50 p-5 rounded-lg border border-gray-200">
+            <h3 className="text-xl font-semibold text-gray-700 mb-4">Gerar Novo Relatório</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+              <div>
+                <label htmlFor="region" className="block text-sm font-medium text-gray-700 mb-1">Filtrar por Região:</label>
+                <select
+                  id="region"
+                  value={selectedRegion}
+                  onChange={(e) => setSelectedRegion(e.target.value)}
+                  className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm rounded-md"
+                >
+                  <option value="">Todas as Regiões</option>
+                  <option value="rural">Rural</option>
+                  <option value="periferica">Periférica</option>
+                  <option value="urbana">Urbana</option>
+                </select>
+              </div>
+              <div>
+                <label htmlFor="usageType" className="block text-sm font-medium text-gray-700 mb-1">Filtrar por Tipo de Uso:</label>
+                <select
+                  id="usageType"
+                  value={selectedUsageType}
+                  onChange={(e) => setSelectedUsageType(e.target.value)}
+                  className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm rounded-md"
+                >
+                  <option value="">Todos os Tipos</option>
+                  <option value="simulador">Uso do Simulador</option>
+                  <option value="quiz">Participação em Quiz</option>
+                  <option value="conteudo">Consumo de Conteúdo</option>
+                </select>
+              </div>
+            </div>
+            <button
+              onClick={generateReport}
+              className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg shadow-md transition duration-200 mt-4"
+            >
+              Gerar Relatório
+            </button>
+          </div>
+
+          {reportGenerated && (
+            <div className="bg-blue-50 p-6 rounded-lg border border-blue-200 text-blue-800 shadow-md">
+              <h3 className="text-xl font-semibold mb-3">Dados do Relatório Gerado (Simulado)</h3>
+              <p className="mb-2"><strong>Região Selecionada:</strong> {selectedRegion || 'Todas'}</p>
+              <p className="mb-2"><strong>Tipo de Uso Selecionado:</strong> {selectedUsageType || 'Todos'}</p>
+              <p className="text-lg font-bold mt-4">
+                Este é um relatório simulado. Em uma aplicação real, aqui seriam exibidos dados consolidados,
+                gráficos e tabelas com base nos filtros selecionados, como:
+              </p>
+              <ul className="list-disc list-inside mt-2 space-y-1">
+                <li>Número de usuários ativos na região X.</li>
+                <li>Média de simulações realizadas por tipo de usuário Y.</li>
+                <li>Taxa de conclusão de checklists.</li>
+                <li>Regiões com maior engajamento no quiz.</li>
+              </ul>
+            </div>
+          )}
+        </div>
+      );
+    };
+
+    // Componente Principal da Aplicação
+    const App = () => {
+      const [loggedInUser, setLoggedInUser] = useState(null);
+      const [userRecordId, setUserRecordId] = useState(null);
+      const [activeScreen, setActiveScreen] = useState('splash');
+      const [toastMessage, setToastMessage] = useState('');
+      const [toastType, setToastType] = useState('info');
+
+      useEffect(() => {
+        const checkPersistentLogin = async () => {
+          const storedEmail = await WebStorage.getItem('loggedInAdminEmail');
+          const storedRecordId = await WebStorage.getItem('adminRecordId');
+          
+          if (storedEmail && storedRecordId) {
+            // Para obter o nome, seria necessária uma chamada à API.
+            // Por enquanto, usamos o email como placeholder.
+            setLoggedInUser({ name: storedEmail, email: storedEmail });
+            setUserRecordId(storedRecordId);
+            showToast('Login automático. Bem-vindo(a) de volta!', 'success');
+            setActiveScreen('dashboard');
+          } else {
+            setActiveScreen('adminAuth');
+          }
+        };
+
+        if (activeScreen === 'splash') {
+          const timer = setTimeout(() => {
+            checkPersistentLogin();
+          }, 1500); // Splash por 1.5 segundos
+          return () => clearTimeout(timer); // Limpa o timer se o componente for desmontado
+        }
+      }, []); // Executa apenas uma vez na montagem inicial
+
+
+      const showToast = (message, type = 'info') => {
+        setToastMessage(message);
+        setToastType(type);
+        setTimeout(() => setToastMessage(''), 4000); // Esconde após 4 segundos
+      };
+
+      const handleAuthSuccess = async (name, email, recordId) => {
+        setLoggedInUser({ name: name, email: email });
+        setUserRecordId(recordId);
+        await WebStorage.setItem('loggedInAdminEmail', email);
+        await WebStorage.setItem('adminRecordId', recordId);
+        setActiveScreen('dashboard');
+      };
+
+      const handleLogout = async () => {
+        if (window.confirm("Tem a certeza que deseja sair?")) {
+            await WebStorage.removeItem('loggedInAdminEmail');
+            await WebStorage.removeItem('adminRecordId');
+            setLoggedInUser(null);
+            setUserRecordId(null);
+            setToastMessage('Sessão encerrada.', 'info');
+            setActiveScreen('adminAuth');
+        }
+      };
+
+      const renderContent = () => {
+        if (activeScreen === 'splash') {
+          return <SplashPage />;
+        } else if (activeScreen === 'adminAuth' || !loggedInUser) {
+          return <AdminLoginPage onAuthSuccess={handleAuthSuccess} showToast={showToast} />;
+        } else {
+          return (
+            <div className="flex flex-col md:flex-row min-h-screen bg-gray-100 font-inter">
+              <aside className="w-full md:w-64 bg-green-800 text-white p-4 shadow-lg flex-shrink-0">
+                <h1 className="text-2xl font-bold mb-6 text-center">Admin Biogás</h1>
+                <nav>
+                  <ul>
+                    <NavItem icon={<HomeIcon className="w-5 h-5" />} text="Dashboard" isActive={activeScreen === 'dashboard'} onClick={() => setActiveScreen('dashboard')} />
+                    <NavItem icon={<BookTextIcon className="w-5 h-5" />} text="Gestão de Conteúdo" isActive={activeScreen === 'contentManagement'} onClick={() => setActiveScreen('contentManagement')} />
+                    <NavItem icon={<UsersIcon className="w-5 h-5" />} text="Gestão de Usuários" isActive={activeScreen === 'userManagement'} onClick={() => setActiveScreen('userManagement')} />
+                    <NavItem icon={<MessageSquareIcon className="w-5 h-5" />} text="Dúvidas dos Usuários" isActive={activeScreen === 'userDoubts'} onClick={() => setActiveScreen('userDoubts')} />
+                    <NavItem icon={<BarChartIcon className="w-5 h-5" />} text="Relatórios" isActive={activeScreen === 'reports'} onClick={() => setActiveScreen('reports')} />
+                    
+                    <li className="absolute bottom-4 left-4 right-4 md:static md:mt-8">
+                      <button
+                        onClick={handleLogout}
+                        className="flex items-center w-full p-3 rounded-lg bg-red-600 hover:bg-red-700 font-semibold shadow-md transition-all duration-200"
+                      >
+                        Sair ({loggedInUser.name})
+                      </button>
+                    </li>
+                  </ul>
+                </nav>
+              </aside>
+
+              <main className="flex-1 p-6 md:p-8 overflow-auto">
+                {renderScreen()}
+              </main>
+            </div>
+          );
+        }
+      };
+
+      const renderScreen = () => {
+        switch (activeScreen) {
+          case 'dashboard':
+            return <Dashboard />;
+          case 'contentManagement':
+            return <ContentManagement showToast={showToast} />;
+          case 'userManagement':
+            return <UserManagement showToast={showToast} />;
+          case 'userDoubts':
+            return <UserDoubts showToast={showToast} />;
+          case 'reports':
+            return <Reports showToast={showToast} />;
+          default:
+            return <Dashboard />;
+        }
+      };
+
+      return (
+        <React.Fragment>
+          {renderContent()}
+          <Toast message={toastMessage} type={toastType} onClose={() => setToastMessage('')} />
+        </React.Fragment>
+      );
+    };
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>
