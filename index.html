@@ -1,0 +1,1461 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Biogás</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts - Inter -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <!-- React CDN -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <!-- Babel Standalone for JSX transformation in browser (for development/single file) -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+      margin: 0;
+    }
+    /* Simple animation for loading spinner */
+    .animate-spin {
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin {
+      from {
+        transform: rotate(0deg);
+      }
+      to {
+        transform: rotate(360deg);
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useRef } = React;
+
+    // --- CONFIGURAÇÃO DO BACKEND ---
+    // URL do seu servidor backend hospedado no Glitch.
+    const BACKEND_URL = "https://biostartserver.glitch.me"; 
+
+    // --- SIMULAÇÃO DE WEB STORAGE (USA localStorage) ---
+    const WebStorage = {
+      getItem: async (key) => {
+        try {
+          return localStorage.getItem(key);
+        } catch (e) {
+          console.error("Erro ao ler do localStorage:", e);
+          return null;
+        }
+      },
+      setItem: async (key, value) => {
+        try {
+          localStorage.setItem(key, value);
+        } catch (e) {
+          console.error("Erro ao escrever no localStorage:", e);
+        }
+      },
+      removeItem: async (key) => {
+        try {
+          localStorage.removeItem(key);
+        } catch (e) {
+          console.error("Erro ao remover do localStorage:", e);
+        }
+      }
+    };
+
+    // --- Componentes Reutilizáveis de UI (Declarados uma única vez) ---
+
+    const Toast = ({ message, type, onClose }) => {
+      if (!message) return null;
+      const bgColor = type === 'success' ? 'bg-green-500' : 'bg-blue-500';
+      return (
+        <div className={`fixed bottom-4 right-4 ${bgColor} text-white px-6 py-3 rounded-lg shadow-lg z-50 transition-transform duration-300 transform translate-y-0`}>
+          <div className="flex items-center justify-between">
+            <span>{message}</span>
+            <button onClick={onClose} className="ml-4 text-white hover:text-gray-200">
+              &times;
+            </button>
+          </div>
+        </div>
+      );
+    };
+
+    const Modal = ({ isOpen, onClose, title, children }) => {
+      if (!isOpen) return null;
+      return (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-40">
+          <div className="bg-white p-6 rounded-lg shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center border-b pb-3 mb-4">
+              <h2 className="text-xl font-bold text-gray-800">{title}</h2>
+              <button onClick={onClose} className="text-gray-500 hover:text-gray-700 text-2xl leading-none">
+                &times;
+              </button>
+            </div>
+            <div>{children}</div>
+          </div>
+        </div>
+      );
+    };
+
+    // Ícones Lucide React (Renderizados como SVG inline)
+    const HomeIcon = (props) => (<svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-home"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>);
+    const BookTextIcon = (props) => (<svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-book-text"><path d="M4 19.5V15a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v4.5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z"/><path d="M4 12V6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v6"/><path d="M9 10h6"/></svg>);
+    const UsersIcon = (props) => (<svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-users"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>);
+    const MessageSquareIcon = (props) => (<svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-message-square"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>);
+    const BarChartIcon = (props) => (<svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-bar-chart"><line x1="12" x2="12" y1="20" y2="10"/><line x1="18" x2="18" y1="20" y2="4"/><line x1="6" x2="6" y1="20" y2="16"/></svg>);
+    const PlusCircleIcon = (props) => (<svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-plus-circle"><circle cx="12" cy="12" r="10"/><path d="M8 12h8"/><path d="M12 8v8"/></svg>);
+    const EditIcon = (props) => (<svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-edit"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4Z"/></svg>);
+    const Trash2Icon = (props) => (<svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-trash-2"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>);
+    const CheckCircleIcon = (props) => (<svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-check-circle"><path d="M22 11.08V12a10 10 0 1 1-5.93-8.5"/><polyline points="22 4 12 14.01 9 11.01"/></svg>);
+    const XCircleIcon = (props) => (<svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-x-circle"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg>);
+    const SparklesIcon = (props) => (<svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-sparkles"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.272 1.272L3 12l5.813 1.912a2 2 0 0 1 1.272 1.272L12 21l1.912-5.813a2 2 0 0 1 1.272-1.272L21 12l-5.813-1.912a2 2 0 0 1-1.272-1.272Z"/><path d="M5 3v4"/><path d="M19 17v4"/><path d="M2.75 7.25h4.5"/><path d="M16.25 16.75h4.5"/></svg>);
+    const SunIcon = (props) => (<svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-sun"><circle cx="12" cy="12" r="8"/><line x1="12" x2="12" y1="2" y2="4"/><line x1="12" x2="12" y1="20" y2="22"/><line x1="4.22" x2="5.64" y1="4.22" y2="5.64"/><line x1="18.36" x2="19.78" y1="18.36" y2="19.78"/><line x1="2" x2="4" y1="12" y2="12"/><line x1="20" x2="22" y1="12" y2="12"/><line x1="4.22" x2="5.64" y1="19.78" y2="18.36"/><line x1="18.36" x2="19.78" y1="5.64" y2="4.22"/></svg>);
+    const EyeIcon = (props) => (<svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-eye"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>);
+    const EyeOffIcon = (props) => (<svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-eye-off"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-10-7-10-7a1.8 1.8 0 0 1 .31-1.24L4.35 9.7M8.67 8.67 6 6c-3.14 2.8-4.58 5.25-4.83 5.79a1.82 1.82 0 0 0-.31 1.24C2 15 5 20 12 20c.95 0 1.9-.11 2.82-.32"/><path d="M15.46 15.46 19 19m-4.54-4.54a3 3 0 0 0-4.24-4.24m3.04 3.04.5.5Z"/><line x1="2" x2="22" y1="2" y2="22"/></svg>);
+    const SquareIcon = (props) => (<svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-square"><rect width="18" height="18" x="3" y="3" rx="2"/></svg>);
+    const CogIcon = (props) => (<svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-cog"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83l-2.64 2.64a2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0L2.64 18a2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83L5.9 2.64a2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33 1.65 1.65 0 0 0 1.82-.33l-.06-.06a2 2 0 0 1 2.83 0l2.64 2.64a2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82Z"/></svg>);
+
+
+    // Componentes Auxiliares (usados pelas telas)
+    const NavItem = ({ icon, text, isActive, onClick }) => (
+      <li className="mb-2">
+        <button
+          onClick={onClick}
+          className={`flex items-center w-full p-3 rounded-lg transition-all duration-200
+            ${isActive ? 'bg-green-700 font-semibold shadow-md' : 'hover:bg-green-700 hover:shadow-sm'}
+          `}
+        >
+          {icon}
+          <span className="ml-2">{text}</span>
+        </button>
+      </li>
+    );
+
+    const MetricCard = ({ title, value, description }) => (
+      <div className="bg-blue-100 p-5 rounded-lg shadow-md border-l-4 border-blue-500">
+        <h3 className="text-lg font-semibold text-gray-700">{title}</h3>
+        <p className="text-4xl font-bold text-blue-800 mt-2">{value}</p>
+        <p className="text-sm text-gray-600 mt-1">{description}</p>
+      </div>
+    );
+
+    const TabButton = ({ text, isActive, onClick }) => (
+      <button
+        onClick={onClick}
+        className={`
+          whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm transition-colors duration-200
+          ${isActive
+            ? 'border-green-600 text-green-600'
+            : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
+          }
+        `}
+      >
+        {text}
+      </button>
+    );
+
+    const ActionButton = ({ icon, onClick, tooltip, className }) => (
+      <button
+        onClick={onClick}
+        className={`p-2 rounded-full text-white shadow-sm transition duration-200 ${className}`}
+        title={tooltip}
+      >
+        {icon}
+      </button>
+    );
+
+
+    // --- Telas da Aplicação (Componentes) ---
+
+    // SplashPage: A primeira tela que aparece, com um carregamento animado.
+    const SplashPage = () => {
+      return (
+        <div className="flex items-center justify-center min-h-screen bg-green-500">
+          {/* Conteúdo da Splash Screen */}
+          <div className="flex flex-col items-center">
+            <svg className="animate-spin text-white w-20 h-20 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <h1 className="text-4xl font-bold text-white">Carregando...</h1>
+          </div>
+        </div>
+      );
+    };
+
+    // AdminLoginPage: Tela de login e REGISTO específica para administradores.
+    const AdminLoginPage = ({ onAuthSuccess, showToast }) => {
+      const [isRegistering, setIsRegistering] = useState(false); // Novo estado para alternar
+      const [name, setName] = useState(''); // Novo campo para registo
+      const [email, setEmail] = useState('');
+      const [password, setPassword] = useState('');
+      const [confirmPassword, setConfirmPassword] = useState(''); // Campo de confirmação de senha
+      const [showPassword, setShowPassword] = useState(false);
+      const [isLoading, setIsLoading] = useState(false);
+
+      const handleAuth = async () => {
+        setIsLoading(true);
+        console.log("AdminLoginPage: handleAuth iniciado. A registar?", isRegistering);
+
+        try {
+          let response;
+          let data;
+          const endpoint = isRegistering ? `${BACKEND_URL}/admin-registro` : `${BACKEND_URL}/admin-login`;
+          
+          if (isRegistering) {
+            // --- Lógica de Registo de Administrador ---
+            if (!name || !email || !password || !confirmPassword) {
+              showToast('Por favor, preencha todos os campos obrigatórios.', 'error');
+              setIsLoading(false);
+              return;
+            }
+            if (password !== confirmPassword) {
+              showToast('As senhas não coincidem.', 'error');
+              setIsLoading(false);
+              return;
+            }
+
+            console.log("AdminLoginPage: A enviar dados de registo de admin para o backend...");
+            response = await fetch(endpoint, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ name, email, password }),
+            });
+            data = await response.json();
+            console.log("AdminLoginPage: Resposta do backend para registo de admin:", data);
+
+            if (response.ok && data.success) {
+              showToast(`Administrador(a) ${name} registado(a) com sucesso!`, 'success');
+              // Após registo, pode fazer login automático ou pedir para fazer login
+              setIsRegistering(false); // Volta para a tela de login após registo
+              setEmail(''); // Limpa campos para novo login
+              setPassword('');
+              setConfirmPassword('');
+              setName('');
+            } else {
+              showToast(data.error || 'Não foi possível registar o administrador. Tente novamente.', 'error');
+            }
+
+          } else {
+            // --- Lógica de Login de Administrador ---
+            if (!email || !password) {
+              showToast('Por favor, insira o email e a senha do administrador.', 'error');
+              setIsLoading(false);
+              return;
+            }
+
+            console.log("AdminLoginPage: A enviar dados de login de admin para o backend...");
+            response = await fetch(endpoint, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ email, password }),
+            });
+            data = await response.json();
+            console.log("AdminLoginPage: Resposta do backend para login:", data);
+
+            if (response.ok && data.success && data.isAdmin) {
+              showToast(`Bem-vindo(a), ${data.admin['Nome do Admin']}!`, 'success');
+              onAuthSuccess(data.admin['Nome do Admin'], data.admin.email, data.recordId); 
+            } else {
+              showToast(data.error || 'Credenciais de administrador incorretas.', 'error');
+            }
+          }
+        } catch (error) {
+          console.error("AdminLoginPage: Erro de conexão ou inesperado:", error);
+          showToast('Não foi possível conectar ao servidor. Verifique o URL do backend.', 'error');
+        } finally {
+          setIsLoading(false);
+          console.log("AdminLoginPage: Autenticação concluída.");
+        }
+      };
+
+      return (
+        <div className="flex flex-col items-center justify-center min-h-screen bg-gray-900 py-8 px-4 overflow-y-auto">
+          <div className="bg-white p-8 rounded-2xl shadow-2xl max-w-sm w-full flex flex-col items-center">
+            <CogIcon className="w-16 h-16 text-gray-700 mb-6" /> 
+            <h2 className="text-3xl font-bold text-gray-800 mb-2 text-center">
+              {isRegistering ? 'Registar Administrador' : 'Login do Administrador'}
+            </h2>
+            <p className="text-gray-600 mb-6 text-center text-base">
+              {isRegistering ? 'Crie uma nova conta de administrador' : 'Aceda ao painel de gestão do BioStart'}
+            </p>
+
+            {isRegistering && (
+                <div className="w-full mb-4">
+                    <label htmlFor="name" className="block text-lg font-semibold text-gray-700 mb-1">Nome do Admin *</label>
+                    <input
+                        type="text"
+                        id="name"
+                        placeholder="Nome completo do administrador"
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 text-gray-800"
+                    />
+                </div>
+            )}
+            <div className="w-full mb-4">
+              <label htmlFor="email" className="block text-lg font-semibold text-gray-700 mb-1">Email *</label>
+              <input
+                type="email"
+                id="email"
+                placeholder="admin@biostart.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                autoCapitalize="none"
+                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 text-gray-800"
+              />
+            </div>
+            <div className="w-full mb-6">
+              <label htmlFor="password" className="block text-lg font-semibold text-gray-700 mb-1">Senha *</label>
+              <div className="flex items-center w-full p-3 border border-gray-300 rounded-lg focus-within:ring-2 focus-within:ring-green-500">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  id="password"
+                  placeholder="Senha do administrador"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="flex-1 text-gray-800 outline-none"
+                />
+                <button type="button" onClick={() => setShowPassword(!showPassword)} className="ml-2 text-gray-500 hover:text-gray-700">
+                  {showPassword ? <EyeOffIcon className="w-5 h-5" /> : <EyeIcon className="w-5 h-5" />}
+                </button>
+              </div>
+            </div>
+            {isRegistering && (
+                <div className="w-full mb-6">
+                    <label htmlFor="confirmPassword" className="block text-lg font-semibold text-gray-700 mb-1">Confirmar Senha *</label>
+                    <div className="flex items-center w-full p-3 border border-gray-300 rounded-lg focus-within:ring-2 focus-within:ring-green-500">
+                        <input
+                            type={showPassword ? 'text' : 'password'}
+                            id="confirmPassword"
+                            placeholder="Confirmar senha"
+                            value={confirmPassword}
+                            onChange={(e) => setConfirmPassword(e.target.value)}
+                            className="flex-1 text-gray-800 outline-none"
+                        />
+                        <button type="button" onClick={() => setShowPassword(!showPassword)} className="ml-2 text-gray-500 hover:text-gray-700">
+                            {showPassword ? <EyeOffIcon className="w-5 h-5" /> : <EyeIcon className="w-5 h-5" />}
+                        </button>
+                    </div>
+                </div>
+            )}
+            
+            <button
+              onClick={handleAuth}
+              className={`w-full bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-6 rounded-lg shadow-md transition duration-300 ease-in-out transform flex items-center justify-center mb-4
+                ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <div className="animate-spin mr-2 w-5 h-5 border-2 border-white border-t-transparent rounded-full"></div>
+              ) : (
+                <>
+                  <span>{isRegistering ? 'Registar Admin' : 'Entrar como Admin'}</span>
+                </>
+              )}
+            </button>
+
+            <button
+              onClick={() => setIsRegistering(!isRegistering)}
+              className="mt-2 text-green-600 text-base font-semibold hover:underline"
+              disabled={isLoading}
+            >
+              <span>{isRegistering ? 'Já tem uma conta de admin? Fazer Login' : 'Não tem uma conta de admin? Registar-se'}</span>
+            </button>
+          </div>
+        </div>
+      );
+    };
+
+
+    const Dashboard = () => {
+      return (
+        <div className="bg-white p-6 rounded-lg shadow-xl">
+          <h2 className="text-3xl font-bold text-gray-800 mb-6">Dashboard</h2>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+            <MetricCard title="Acessos Totais" value="12.450" description="Últimos 30 dias" />
+            <MetricCard title="Simulações Realizadas" value="1.870" description="Média diária: 62" />
+            <MetricCard title="Acertos no Quiz" value="85%" description="Taxa de acerto média" />
+          </div>
+
+          <div className="bg-gray-50 p-6 rounded-lg border border-gray-200">
+            <h3 className="text-xl font-semibold text-gray-700 mb-4">Gráfico de Uso do App (Simulado)</h3>
+            <p className="text-gray-600">
+              Este espaço mostraria gráficos interativos, como o número de acessos por semana,
+              distribuição de simulações ou performance do quiz ao longo do tempo.
+              <br />
+              [Gráfico de Linha: Acessos por Mês]
+              <br />
+              [Gráfico de Barras: Top 5 Simulações]
+            </p>
+          </div>
+        </div>
+      );
+    };
+
+    const ContentManagement = ({ showToast }) => {
+      const [activeTab, setActiveTab] = useState('texts');
+      const [educationalTexts, setEducationalTexts] = useState([]); // Dados reais
+      const [quizzes, setQuizzes] = useState([]);
+      const [checklists, setChecklists] = useState([]);
+      const [simulations, setSimulations] = useState([]);
+      const [isLoadingContent, setIsLoadingContent] = useState(true);
+
+      const [showContentGenerationModal, setShowContentGenerationModal] = useState(false);
+      const [contentGenerationTopic, setContentGenerationTopic] = useState('');
+      const [generatedContent, setGeneratedContent] = useState('');
+      const [isGeneratingContent, setIsGeneratingContent] = useState(false);
+
+      const [showQuizQuestionModal, setShowQuizQuestionModal] = useState(false);
+      const [quizTopic, setQuizTopic] = useState('');
+      const [generatedQuizQuestions, setGeneratedQuizQuestions] = useState('');
+      const [isGeneratingQuizQuestions, setIsGeneratingQuizQuestions] = useState(false);
+
+      const [showAddEditModal, setShowAddEditModal] = useState(false);
+      const [isEditing, setIsEditing] = useState(false);
+      const [currentContentItem, setCurrentContentItem] = useState(null); // Item a ser editado
+      const [newContentTitle, setNewContentTitle] = useState('');
+      const [newContentText, setNewContentText] = useState('');
+      const [newContentAnnexUrl, setNewContentAnnexUrl] = useState(''); // Novo campo para URL do anexo
+
+      // Objeto auxiliar para mapear tipos de conteúdo aos seus estados e funções setter/API endpoints
+      const contentMap = {
+        educationalTexts: {
+          state: educationalTexts,
+          setter: setEducationalTexts,
+          fetchUrl: `${BACKEND_URL}/content/educational-texts`,
+          addUrl: `${BACKEND_URL}/content/educational-texts`,
+          editUrl: (id) => `${BACKEND_URL}/content/educational-texts/${id}`,
+          deleteUrl: (id) => `${BACKEND_URL}/content/educational-texts/${id}`,
+          formFields: ['Título', 'Conteúdo', 'URL do anexo'] // Campos que o formulário terá
+        },
+        quizzes: {
+          state: quizzes,
+          setter: setQuizzes,
+          fetchUrl: `${BACKEND_URL}/content/quizzes`,
+          addUrl: `${BACKEND_URL}/content/quizzes`,
+          editUrl: (id) => `${BACKEND_URL}/content/quizzes/${id}`,
+          deleteUrl: (id) => `${BACKEND_URL}/content/quizzes/${id}`,
+          formFields: ['Título', 'Perguntas']
+        },
+        checklists: {
+          state: checklists,
+          setter: setChecklists,
+          fetchUrl: `${BACKEND_URL}/content/checklists`,
+          addUrl: `${BACKEND_URL}/content/checklists`,
+          editUrl: (id) => `${BACKEND_URL}/content/checklists/${id}`,
+          deleteUrl: (id) => `${BACKEND_URL}/content/checklists/${id}`,
+          formFields: ['Título', 'Itens']
+        },
+        simulations: {
+          state: simulations,
+          setter: setSimulations,
+          fetchUrl: `${BACKEND_URL}/content/simulations`,
+          addUrl: `${BACKEND_URL}/content/simulations`,
+          editUrl: (id) => `${BACKEND_URL}/content/simulations/${id}`,
+          deleteUrl: (id) => `${BACKEND_URL}/content/simulations/${id}`,
+          formFields: ['Título', 'Descrição']
+        },
+      };
+
+      // Define activeTabConfig e modalTitlePrefix no escopo do componente
+      const activeTabConfig = contentMap[activeTab] || {};
+      const modalTitlePrefix = (activeTabConfig.formFields && activeTabConfig.formFields[0]) ? activeTabConfig.formFields[0] : 'Item';
+
+
+      // --- Funções de Fetch para Conteúdo Real ---
+      const fetchContent = async (type) => {
+        setIsLoadingContent(true);
+        const { setter, fetchUrl } = contentMap[type];
+        try {
+          const response = await fetch(fetchUrl);
+          const result = await response.json();
+          if (response.ok && result.success) {
+            setter(result.data);
+          } else {
+            showToast(`Erro ao carregar ${type}: ${result.error || 'Desconhecido'}`, 'error');
+            setter([]); // Limpa dados em caso de erro
+          }
+        } catch (error) {
+          console.error(`Erro de conexão ao carregar ${type}:`, error);
+          showToast(`Erro de conexão ao carregar ${type}.`, 'error');
+          setter([]);
+        } finally {
+          setIsLoadingContent(false);
+        }
+      };
+
+      // Efeito para carregar dados quando a aba ativa muda
+      useEffect(() => {
+        fetchContent(activeTab);
+      }, [activeTab]); // Dependência em activeTab
+
+      // --- Funções de Manipulação de Conteúdo ---
+      const handleAddEditContent = async (type, itemData, isEditMode, itemId = null) => {
+        setIsLoadingContent(true);
+        const { addUrl, editUrl, fetchUrl, setter } = contentMap[type];
+        let url = isEditMode ? editUrl(itemId) : addUrl;
+        let method = isEditMode ? 'PATCH' : 'POST';
+
+        try {
+          const response = await fetch(url, {
+            method: method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(itemData),
+          });
+          const result = await response.json();
+
+          if (response.ok && result.success) {
+            showToast(`${type} ${isEditMode ? 'atualizado' : 'adicionado'} com sucesso!`, 'success');
+            setShowAddEditModal(false); // Fecha o modal
+            fetchContent(type); // Recarrega os dados para atualizar a lista
+          } else {
+            showToast(`Erro ao ${isEditMode ? 'atualizar' : 'adicionar'} ${type}: ${result.error || 'Desconhecido'}`, 'error');
+          }
+        } catch (error) {
+          console.error(`Erro ao ${isEditMode ? 'atualizar' : 'adicionar'} ${type}:`, error);
+          showToast(`Erro de conexão ao ${isEditMode ? 'atualizar' : 'adicionar'} ${type}.`, 'error');
+        } finally {
+          setIsLoadingContent(false);
+        }
+      };
+
+      const handleConfirmDelete = async (type, id) => {
+        if (!window.confirm(`Tem certeza que deseja excluir ${type} ID: ${id}?`)) {
+          return;
+        }
+        setIsLoadingContent(true);
+        const { deleteUrl } = contentMap[type];
+        try {
+          const response = await fetch(deleteUrl(id), {
+            method: 'DELETE',
+          });
+          const result = await response.json();
+
+          if (response.ok && result.success) {
+            showToast(`${type} ID: ${id} excluído com sucesso.`, 'success');
+            fetchContent(type); // Recarrega os dados
+          } else {
+            showToast(`Erro ao excluir ${type}: ${result.error || 'Desconhecido'}`, 'error');
+          }
+        } catch (error) {
+          console.error(`Erro ao excluir ${type} ID ${id}:`, error);
+          showToast(`Erro de conexão ao excluir ${type}.`, 'error');
+        } finally {
+          setIsLoadingContent(false);
+        }
+      };
+
+      // Funções para abrir modais de Adicionar/Editar
+      const openAddModal = (type) => {
+        setIsEditing(false);
+        setCurrentContentItem(null);
+        setNewContentTitle('');
+        setNewContentText('');
+        setNewContentAnnexUrl(''); // Limpa o anexo
+        setShowAddEditModal(true);
+      };
+
+      const openEditModal = (type, item) => {
+        setIsEditing(true);
+        setCurrentContentItem(item);
+        setNewContentTitle(item.title);
+        setNewContentText(item.content);
+        setNewContentAnnexUrl(item.annexUrl || ''); // Preenche com o URL existente
+        setShowAddEditModal(true);
+      };
+
+      // LLM: Gerar Conteúdo Educacional Detalhado
+      const handleGenerateDetailedContent = async () => {
+        if (!contentGenerationTopic.trim()) {
+          showToast('Por favor, insira um tópico para gerar conteúdo.', 'info');
+          return;
+        }
+        setIsGeneratingContent(true);
+        setGeneratedContent('');
+
+        try {
+          const response = await fetch(`${BACKEND_URL}/generate-content-ai`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ topic: contentGenerationTopic }),
+          });
+          const result = await response.json();
+
+          if (response.ok && result.success) {
+            setGeneratedContent(result.generatedText);
+            showToast('Conteúdo gerado com sucesso!', 'success');
+          } else {
+            showToast(result.error || 'Não foi possível gerar o conteúdo. Tente novamente.', 'error');
+          }
+        } catch (error) {
+          console.error('Erro ao chamar a API Gemini para conteúdo:', error);
+          showToast('Erro ao gerar conteúdo. Verifique sua conexão ou tente mais tarde.', 'error');
+        } finally {
+          setIsGeneratingContent(false);
+        }
+      };
+
+      // LLM: Gerar Perguntas de Quiz
+      const handleGenerateQuizQuestions = async () => {
+        if (!quizTopic.trim()) {
+          showToast('Por favor, insira um tópico para gerar as perguntas do quiz.', 'info');
+          return;
+        }
+        setIsGeneratingQuizQuestions(true);
+        setGeneratedQuizQuestions('');
+
+        try {
+          const response = await fetch(`${BACKEND_URL}/generate-quiz-questions-ai`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ topic: quizTopic }),
+          });
+          const result = await response.json();
+
+          if (response.ok && result.success) {
+            setGeneratedQuizQuestions(result.generatedQuestions);
+            showToast('Perguntas de quiz geradas com sucesso!', 'success');
+          } else {
+            showToast(result.error || 'Não foi possível gerar as perguntas do quiz. Tente novamente.', 'error');
+          }
+        } catch (error) {
+          console.error('Erro ao chamar a API Gemini para quiz:', error);
+          showToast('Erro ao gerar perguntas de quiz. Verifique sua conexão ou tente mais tarde.', 'error');
+        } finally {
+          setIsGeneratingQuizQuestions(false);
+        }
+      };
+
+      // Funções para renderizar o modal de Adicionar/Editar
+      const renderAddEditModalContent = () => {
+        const handleSave = () => {
+          let itemData = { title: newContentTitle };
+          if (activeTab === 'educationalTexts') {
+            itemData.content = newContentText;
+            itemData.annexUrl = newContentAnnexUrl.trim() === '' ? null : newContentAnnexUrl;
+          } else if (activeTab === 'quizzes') {
+            try {
+              itemData.questions = JSON.parse(newContentText); 
+            } catch (e) {
+              showToast('Formato de perguntas inválido. Use JSON válido.', 'error');
+              return;
+            }
+          } else if (activeTab === 'checklists') {
+            try {
+              itemData.items = JSON.parse(newContentText); 
+            } catch (e) {
+              showToast('Formato de itens inválido. Use JSON válido.', 'error');
+              return;
+            }
+          } else if (activeTab === 'simulations') {
+            itemData.description = newContentText;
+          }
+          
+          handleAddEditContent(activeTab, itemData, isEditing, currentContentItem ? currentContentItem.id : null);
+        };
+
+        return (
+          <div>
+            <div className="mb-4">
+              <label htmlFor="contentTitle" className="block text-sm font-medium text-gray-700 mb-1">Título:</label>
+              <input
+                type="text"
+                id="contentTitle"
+                className="w-full p-2 border border-gray-300 rounded-md"
+                value={newContentTitle}
+                onChange={(e) => setNewContentTitle(e.target.value)}
+              />
+            </div>
+            {(activeTab === 'educationalTexts' || activeTab === 'simulations') && (
+              <div className="mb-4">
+                <label htmlFor="contentText" className="block text-sm font-medium text-gray-700 mb-1">
+                  {activeTab === 'educationalTexts' ? 'Conteúdo:' : 'Descrição:'}
+                </label>
+                <textarea
+                  id="contentText"
+                  className="w-full h-32 p-2 border border-gray-300 rounded-md resize-y"
+                  value={newContentText}
+                  onChange={(e) => setNewContentText(e.target.value)}
+                ></textarea>
+              </div>
+            )}
+            {activeTab === 'educationalTexts' && ( 
+              <div className="w-full mb-4">
+                <label htmlFor="annexUrl" className="block text-sm font-medium text-gray-700 mb-1">URL do Anexo (opcional):</label>
+                <input
+                  type="url"
+                  id="annexUrl"
+                  placeholder="https://exemplo.com/anexo.pdf"
+                  value={newContentAnnexUrl}
+                  onChange={(e) => setNewContentAnnexUrl(e.target.value)}
+                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 text-gray-800"
+                />
+              </div>
+            )}
+            {(activeTab === 'quizzes' || activeTab === 'checklists') && (
+              <div className="mb-4">
+                <label htmlFor="contentJson" className="block text-sm font-medium text-gray-700 mb-1">
+                  {activeTab === 'quizzes' ? 'Perguntas (JSON):' : 'Itens (JSON):'}
+                </label>
+                <textarea
+                  id="contentJson"
+                  className="w-full h-32 p-2 border border-gray-300 rounded-md resize-y"
+                  value={newContentText} 
+                  onChange={(e) => setNewContentText(e.target.value)}
+                  placeholder="[{ 'question': '...', 'options': [], 'correct': 0 }]"
+                ></textarea>
+              </div>
+            )}
+
+            <button
+              onClick={() => handleSave()}
+              className={`w-full bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg flex items-center justify-center shadow-md transition duration-200 ${isLoadingContent ? 'opacity-50' : ''}`}
+              disabled={isLoadingContent}
+            >
+              {isLoadingContent ? 'A Guardar...' : (isEditing ? 'Guardar Alterações' : 'Adicionar Conteúdo')}
+            </button>
+          </div>
+        );
+      };
+
+      return (
+        <React.Fragment> {/* Fragmento para envolver tudo */}
+          <div className="bg-white p-6 rounded-lg shadow-xl">
+            <h2 className="text-3xl font-bold text-gray-800 mb-6">Gestão de Conteúdo</h2>
+
+            <div className="border-b border-gray-200 mb-6">
+              <nav className="-mb-px flex space-x-8" aria-label="Tabs">
+                <TabButton text="Textos Educativos" isActive={activeTab === 'texts'} onClick={() => setActiveTab('texts')} />
+                <TabButton text="Quizzes" isActive={activeTab === 'quizzes'} onClick={() => setActiveTab('quizzes')} />
+                <TabButton text="Checklists" isActive={activeTab === 'checklists'} onClick={() => setActiveTab('checklists')} />
+                <TabButton text="Simulações" isActive={activeTab === 'simulations'} onClick={() => setActiveTab('simulations')} />
+              </nav>
+            </div>
+
+            {isLoadingContent ? (
+              <div className="flex justify-center items-center h-48">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-500"></div>
+                <span className="ml-4 text-gray-600">A carregar conteúdo...</span>
+              </div>
+            ) : (
+              <>
+                {activeTab === 'texts' && (
+                  <div>
+                    <div className="flex flex-wrap gap-4 justify-between items-center mb-4">
+                      <h3 className="text-xl font-semibold text-gray-700">Textos Educativos</h3>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => openAddModal('educationalTexts')}
+                          className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg flex items-center shadow-md transition duration-200"
+                        >
+                          <PlusCircleIcon className="mr-2" size={20} /> Adicionar Novo Texto
+                        </button>
+                        <button
+                          onClick={() => setShowContentGenerationModal(true)}
+                          className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg flex items-center shadow-md transition duration-200"
+                        >
+                          <SparklesIcon className="mr-2" size={20} /> Gerar Conteúdo Detalhado
+                        </button>
+                      </div>
+                    </div>
+                    <ul className="space-y-4">
+                      {educationalTexts.length === 0 ? (
+                        <li className="text-gray-500 text-center p-4">Nenhum texto educativo encontrado.</li>
+                      ) : (
+                        educationalTexts.map(text => (
+                          <li key={text.id} className="bg-gray-50 p-4 rounded-lg flex justify-between items-center border border-gray-200 shadow-sm">
+                            <div>
+                              <p className="font-semibold text-gray-800">{text.title}</p>
+                              <p className="text-sm text-gray-600 truncate max-w-lg">{text.content}</p>
+                              {text.annexUrl && (
+                                <a href={text.annexUrl} target="_blank" rel="noopener noreferrer" className="text-blue-500 text-sm hover:underline">Ver Anexo</a>
+                              )}
+                            </div>
+                            <div className="flex space-x-2">
+                              <ActionButton icon={<EditIcon size={18} />} onClick={() => openEditModal('educationalTexts', text)} tooltip="Editar" className="bg-blue-500 hover:bg-blue-600" />
+                              <ActionButton icon={<Trash2Icon size={18} />} onClick={() => handleConfirmDelete('educationalTexts', text.id)} tooltip="Excluir" className="bg-red-500 hover:bg-red-600" />
+                            </div>
+                          </li>
+                        ))
+                      )}
+                    </ul>
+                  </div>
+                )}
+
+                {activeTab === 'quizzes' && (
+                  <div>
+                    <div className="flex flex-wrap gap-4 justify-between items-center mb-4">
+                      <h3 className="text-xl font-semibold text-gray-700">Quizzes</h3>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => openAddModal('quizzes')}
+                          className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg flex items-center shadow-md transition duration-200"
+                        >
+                          <PlusCircleIcon className="mr-2" size={20} /> Adicionar Novo Quiz
+                        </button>
+                        <button
+                          onClick={() => setShowQuizQuestionModal(true)}
+                          className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg flex items-center shadow-md transition duration-200"
+                        >
+                          <SparklesIcon className="mr-2" size={20} /> Sugerir Perguntas
+                        </button>
+                      </div>
+                    </div>
+                    <ul className="space-y-4">
+                      {quizzes.length === 0 ? (
+                        <li className="text-gray-500 text-center p-4">Nenhum quiz encontrado.</li>
+                      ) : (
+                        quizzes.map(quiz => (
+                          <li key={quiz.id} className="bg-gray-50 p-4 rounded-lg flex justify-between items-center border border-gray-200 shadow-sm">
+                            <div>
+                              <p className="font-semibold text-gray-800">{quiz.title}</p>
+                              <p className="text-sm text-gray-600">{quiz.questions} perguntas</p>
+                            </div>
+                            <div className="flex space-x-2">
+                              <ActionButton icon={<EditIcon size={18} />} onClick={() => openEditModal('quizzes', quiz)} tooltip="Editar" className="bg-blue-500 hover:bg-blue-600" />
+                              <ActionButton icon={<Trash2Icon size={18} />} onClick={() => handleConfirmDelete('quizzes', quiz.id)} tooltip="Excluir" className="bg-red-500 hover:bg-red-600" />
+                            </div>
+                          </li>
+                        ))
+                      )}
+                    </ul>
+                  </div>
+                )}
+
+                {activeTab === 'checklists' && (
+                  <div>
+                    <div className="flex justify-between items-center mb-4">
+                      <h3 className="text-xl font-semibold text-gray-700">Checklists</h3>
+                      <button
+                        onClick={() => openAddModal('checklists')}
+                        className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg flex items-center shadow-md transition duration-200"
+                      >
+                        <PlusCircleIcon className="mr-2" size={20} /> Adicionar Novo Checklist
+                        </button>
+                    </div>
+                    <ul className="space-y-4">
+                      {checklists.length === 0 ? (
+                        <li className="text-gray-500 text-center p-4">Nenhum checklist encontrado.</li>
+                      ) : (
+                        checklists.map(checklist => (
+                          <li key={checklist.id} className="bg-gray-50 p-4 rounded-lg flex justify-between items-center border border-gray-200 shadow-sm">
+                            <div>
+                              <p className="font-semibold text-gray-800">{checklist.title}</p>
+                              <p className="text-sm text-gray-600">{checklist.items} itens</p>
+                            </div>
+                            <div className="flex space-x-2">
+                              <ActionButton icon={<EditIcon size={18} />} onClick={() => openEditModal('checklists', checklist)} tooltip="Editar" className="bg-blue-500 hover:bg-blue-600" />
+                              <ActionButton icon={<Trash2Icon size={18} />} onClick={() => handleConfirmDelete('checklists', checklist.id)} tooltip="Excluir" className="bg-red-500 hover:bg-red-600" />
+                            </div>
+                          </li>
+                        ))
+                      )}
+                    </ul>
+                  </div>
+                )}
+
+                {activeTab === 'simulations' && (
+                  <div>
+                    <div className="flex justify-between items-center mb-4">
+                      <h3 className="text-xl font-semibold text-gray-700">Simulações</h3>
+                      <button
+                        onClick={() => openAddModal('simulations')}
+                        className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg flex items-center shadow-md transition duration-200"
+                      >
+                        <PlusCircleIcon className="mr-2" size={20} /> Adicionar Nova Simulação
+                      </button>
+                    </div>
+                    <ul className="space-y-4">
+                      {simulations.length === 0 ? (
+                        <li className="text-gray-500 text-center p-4">Nenhuma simulação encontrada.</li>
+                      ) : (
+                        simulations.map(simulation => (
+                          <li key={simulation.id} className="bg-gray-50 p-4 rounded-lg flex justify-between items-center border border-gray-200 shadow-sm">
+                            <div>
+                              <p className="font-semibold text-gray-800">{simulation.title}</p>
+                              <p className="text-sm text-gray-600 truncate max-w-lg">{simulation.description}</p>
+                            </div>
+                            <div className="flex space-x-2">
+                              <ActionButton icon={<EditIcon size={18} />} onClick={() => openEditModal('simulations', simulation)} tooltip="Editar" className="bg-blue-500 hover:bg-blue-600" />
+                              <ActionButton icon={<Trash2Icon size={18} />} onClick={() => handleConfirmDelete('simulations', simulation.id)} tooltip="Excluir" className="bg-red-500 hover:bg-red-600" />
+                            </div>
+                          </li>
+                        ))
+                      )}
+                    </ul>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+
+          {/* Modal para Adicionar/Editar Conteúdo */}
+          <Modal isOpen={showAddEditModal} onClose={() => setShowAddEditModal(false)} title={isEditing ? `Editar ${modalTitlePrefix}` : `Adicionar Novo ${modalTitlePrefix}`}>
+            {renderAddEditModalContent()}
+          </Modal>
+
+
+          {/* Modal para Geração de Conteúdo */}
+          <Modal isOpen={showContentGenerationModal} onClose={() => setShowContentGenerationModal(false)} title="Gerar Conteúdo Educativo com IA">
+            <p className="mb-4 text-gray-700">Insira um tópico para que a IA gere um texto educativo detalhado sobre biogás.</p>
+            <input
+              type="text"
+              className="w-full p-3 border border-gray-300 rounded-md mb-4 focus:ring-green-500 focus:border-green-500"
+              placeholder="Ex: Vantagens da digestão anaeróbica"
+              value={contentGenerationTopic}
+              onChange={(e) => setContentGenerationTopic(e.target.value)}
+            />
+            <button
+              onClick={handleGenerateDetailedContent}
+              className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg flex items-center justify-center shadow-md transition duration-200 mb-4"
+              disabled={isGeneratingContent}
+            >
+              {isGeneratingContent ? (
+                <>
+                  <span className="animate-spin mr-2">&#9696;</span> Gerando...
+                </>
+              ) : (
+                <>
+                  <SparklesIcon className="mr-2" size={20} /> Gerar Conteúdo
+                </>
+              )}
+            </button>
+            {generatedContent && (
+              <div className="bg-gray-100 p-4 rounded-md border border-gray-200 mt-4">
+                <p className="font-semibold mb-2">Conteúdo Gerado:</p>
+                <textarea
+                  className="w-full h-40 p-2 border border-gray-300 rounded-md resize-y"
+                  value={generatedContent}
+                  readOnly
+                ></textarea>
+                <button
+                  onClick={() => {
+                    document.execCommand('copy');
+                    navigator.clipboard.writeText(generatedContent);
+                    showToast('Conteúdo copiado!', 'success');
+                  }}
+                  className="mt-2 bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-200"
+                >
+                  Copiar
+                </button>
+              </div>
+            )}
+          </Modal>
+
+          {/* Modal para Geração de Perguntas de Quiz */}
+          <Modal isOpen={showQuizQuestionModal} onClose={() => setShowQuizQuestionModal(false)} title="Sugerir Perguntas de Quiz com IA">
+            <p className="mb-4 text-gray-700">Insira um tópico para que a IA gere perguntas de quiz sobre biogás.</p>
+            <input
+              type="text"
+              className="w-full p-3 border border-gray-300 rounded-md mb-4 focus:ring-green-500 focus:border-green-500"
+              placeholder="Ex: Produção de metano"
+              value={quizTopic}
+              onChange={(e) => setQuizTopic(e.target.value)}
+            />
+            <button
+              onClick={handleGenerateQuizQuestions}
+              className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg flex items-center justify-center shadow-md transition duration-200 mb-4"
+              disabled={isGeneratingQuizQuestions}
+            >
+              {isGeneratingQuizQuestions ? (
+                <>
+                  <span className="animate-spin mr-2">&#9696;</span> Gerando...
+                </>
+              ) : (
+                <>
+                  <SparklesIcon className="mr-2" size={20} /> Sugerir Perguntas
+                </>
+              )}
+            </button>
+            {generatedQuizQuestions && (
+              <div className="bg-gray-100 p-4 rounded-md border border-gray-200 mt-4">
+                <p className="font-semibold mb-2">Perguntas Sugeridas:</p>
+                <textarea
+                  className="w-full h-40 p-2 border border-gray-300 rounded-md resize-y"
+                  value={generatedQuizQuestions}
+                  readOnly
+                ></textarea>
+                <button
+                  onClick={() => {
+                    document.execCommand('copy');
+                    navigator.clipboard.writeText(generatedQuizQuestions);
+                    showToast('Perguntas copiadas!', 'success');
+                  }}
+                  className="mt-2 bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-200"
+                >
+                  Copiar
+                </button>
+              </div>
+            )}
+          </Modal>
+        </React.Fragment> 
+      );
+    };
+
+    const UserManagement = ({ showToast }) => {
+      // Dados mock de usuários
+      const [users, setUsers] = useState([
+        { id: 1, name: 'João Silva', email: 'joao.silva@example.com', status: 'Ativo' },
+        { id: 2, name: 'Maria Souza', email: 'maria.souza@example.com', status: 'Ativo' },
+        { id: 3, name: 'Pedro Santos', email: 'pedro.santos@example.com', status: 'Inativo' },
+        { id: 4, name: 'Ana Costa', email: 'ana.costa@example.com', status: 'Ativo' },
+      ]);
+
+      // Alterna o status do usuário
+      const toggleUserStatus = (id) => {
+        setUsers(prevUsers =>
+          prevUsers.map(user =>
+            user.id === id
+              ? { ...user, status: user.status === 'Ativo' ? 'Inativo' : 'Ativo' }
+              : user
+          )
+        );
+        showToast('Status do usuário atualizado.', 'success');
+      };
+
+      // Exclui um usuário
+      const deleteUser = (id) => {
+        if (window.confirm(`Tem certeza que deseja excluir o usuário ID: ${id}?`)) { // Usando window.confirm para fins de exemplo
+          setUsers(prevUsers => prevUsers.filter(user => user.id !== id));
+          showToast('Usuário excluído com sucesso.', 'success');
+        }
+      };
+
+      return (
+        <div className="bg-white p-6 rounded-lg shadow-xl">
+          <h2 className="text-3xl font-bold text-gray-800 mb-6">Gestão de Usuários</h2>
+
+          <div className="overflow-x-auto">
+            <table className="min-w-full bg-white rounded-lg overflow-hidden shadow-md">
+              <thead className="bg-gray-100 border-b border-gray-200">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nome</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ações</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {users.map(user => (
+                  <tr key={user.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{user.name}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{user.email}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm">
+                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full
+                        ${user.status === 'Ativo' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}
+                      `}>
+                        {user.status}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                      <div className="flex space-x-2">
+                        <ActionButton
+                          icon={user.status === 'Ativo' ? <XCircleIcon className="w-5 h-5" /> : <CheckCircleIcon className="w-5 h-5" />}
+                          onClick={() => toggleUserStatus(user.id)}
+                          tooltip={user.status === 'Ativo' ? 'Inativar' : 'Ativar'}
+                          className={user.status === 'Ativo' ? 'bg-yellow-500 hover:bg-yellow-600' : 'bg-green-500 hover:bg-green-600'}
+                        />
+                        <ActionButton
+                          icon={<Trash2Icon className="w-5 h-5" />}
+                          onClick={() => deleteUser(user.id)}
+                          tooltip="Excluir"
+                          className="bg-red-500 hover:bg-red-600"
+                        />
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      );
+    };
+
+    const UserDoubts = ({ showToast }) => {
+      // Dados mock de dúvidas
+      const [doubts, setDoubts] = useState([
+        { id: 1, user: 'Usuário A', subject: 'Dúvida sobre dimensionamento', message: 'Qual o tamanho ideal do biodigestor para minha fazenda?', status: 'Pendente' },
+        { id: 2, user: 'Usuário B', subject: 'Sugestão de conteúdo', message: 'Gostaria de ver mais sobre o uso do biogás em veículos.', status: 'Pendente' },
+        { id: 3, user: 'Usuário C', subject: 'Problema com quiz', message: 'A pergunta 3 do quiz básico está com a resposta errada.', status: 'Resolvido' },
+      ]);
+
+      // Estados para Integração LLM (Sugestão de Resposta)
+      const [showReplySuggestionModal, setShowReplySuggestionModal] = useState(false);
+      const [currentDoubtMessage, setCurrentDoubtMessage] = useState('');
+      const [suggestedReply, setSuggestedReply] = useState('');
+      const [isSuggestingReply, setIsSuggestingReply] = useState(false);
+
+      // Marca uma dúvida como resolvida
+      const markAsResolved = (id) => {
+        setDoubts(prevDoubts =>
+          prevDoubts.map(doubt =>
+            doubt.id === id ? { ...doubt, status: 'Resolvido' } : doubt
+          )
+        );
+        showToast('Dúvida marcada como resolvida.', 'success');
+      };
+
+      // Simula a funcionalidade de responder a uma dúvida
+      const replyToDoubt = (id, user) => {
+        showToast(`Funcionalidade de responder ao usuário ${user} sobre a dúvida ID: ${id}. Um campo de texto para resposta apareceria aqui.`, 'info');
+      };
+
+      // LLM: Sugerir Resposta
+      const handleSuggestReply = async () => {
+        if (!currentDoubtMessage.trim()) {
+          showToast('Nenhuma mensagem de dúvida selecionada para sugerir resposta.', 'info');
+          return;
+        }
+        setIsSuggestingReply(true);
+        setSuggestedReply('');
+
+        try {
+          const prompt = `Um usuário do aplicativo Biogás enviou a seguinte mensagem de dúvida/sugestão: "${currentDoubtMessage}". Por favor, gere uma resposta concisa, útil e amigável que um administrador poderia enviar. Comece a resposta de forma cordial e termine com uma saudação.`;
+          const chatHistory = [];
+          chatHistory.push({ role: "user", parts: [{ text: prompt }] });
+          const payload = { contents: chatHistory };
+          // A chave de API Gemini foi inserida para demonstração. Em produção, use um backend.
+          const apiKey = "AIzaSyD5qz7sG8XXNDT38cUWO2OXvAruhHmHo8FY"; 
+          const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+
+          const response = await fetch(apiUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+          const result = await response.json();
+
+          if (result.candidates && result.candidates.length > 0 &&
+              result.candidates[0].content && result.candidates[0].content.parts &&
+              result.candidates[0].content.parts.length > 0) {
+            const text = result.candidates[0].content.parts[0].text;
+            setSuggestedReply(text);
+            showToast('Resposta sugerida com sucesso!', 'success');
+          } else {
+            showToast('Não foi possível sugerir uma resposta. Tente novamente.', 'error');
+          }
+        } catch (error) {
+          console.error('Erro ao chamar a API Gemini para sugestão de resposta:', error);
+          showToast('Erro ao sugerir resposta. Verifique sua conexão ou tente mais tarde.', 'error');
+        } finally {
+          setIsSuggestingReply(false);
+        }
+      };
+
+
+      return (
+        <div className="bg-white p-6 rounded-lg shadow-xl">
+          <h2 className="text-3xl font-bold text-gray-800 mb-6">Dúvidas e Sugestões dos Usuários</h2>
+
+          <div className="space-y-4">
+            {doubts.map(doubt => (
+              <div key={doubt.id} className="bg-gray-50 p-5 rounded-lg border border-gray-200 shadow-sm">
+                <div className="flex justify-between items-center mb-2">
+                  <h3 className="font-bold text-lg text-gray-800">{doubt.subject}</h3>
+                  <span className={`px-3 py-1 rounded-full text-xs font-semibold
+                    ${doubt.status === 'Pendente' ? 'bg-orange-100 text-orange-800' : 'bg-green-100 text-green-800'}
+                  `}>
+                    {doubt.status}
+                  </span>
+                </div>
+                <p className="text-sm text-gray-700 mb-3">De: {doubt.user}</p>
+                <p className="text-gray-600 mb-4">{doubt.message}</p>
+                <div className="flex flex-wrap gap-2">
+                  {doubt.status === 'Pendente' && (
+                    <>
+                      <button
+                        onClick={() => replyToDoubt(doubt.id, doubt.user)}
+                        className="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-200"
+                      >
+                        Responder
+                      </button>
+                      <button
+                        onClick={() => {
+                          setCurrentDoubtMessage(doubt.message);
+                          setShowReplySuggestionModal(true);
+                        }}
+                        className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg flex items-center shadow-md transition duration-200"
+                      >
+                        <SparklesIcon className="w-5 h-5 mr-2" /> Sugerir Resposta
+                      </button>
+                      <button
+                        onClick={() => markAsResolved(doubt.id)}
+                        className="bg-green-500 hover:bg-green-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-200"
+                      >
+                        Marcar como Resolvido
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Modal para Sugestão de Resposta */}
+          <Modal isOpen={showReplySuggestionModal} onClose={() => setShowReplySuggestionModal(false)} title="Sugerir Resposta com IA">
+            <p className="mb-4 text-gray-700">Mensagem do usuário:</p>
+            <div className="bg-gray-100 p-3 rounded-md border border-gray-200 mb-4">
+              <p className="text-sm text-gray-800">{currentDoubtMessage}</p>
+            </div>
+            <button
+              onClick={handleSuggestReply}
+              className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg flex items-center justify-center shadow-md transition duration-200 mb-4"
+              disabled={isSuggestingReply}
+            >
+              {isSuggestingReply ? (
+                <>
+                  <span className="animate-spin mr-2">&#9696;</span> Gerando Sugestão...
+                </>
+              ) : (
+                <>
+                  <SparklesIcon className="mr-2" size={20} /> Sugerir Resposta
+                </>
+              )}
+            </button>
+            {suggestedReply && (
+              <div className="bg-gray-100 p-4 rounded-md border border-gray-200 mt-4">
+                <p className="font-semibold mb-2">Resposta Sugerida:</p>
+                <textarea
+                  className="w-full h-40 p-2 border border-gray-300 rounded-md resize-y"
+                  value={suggestedReply}
+                  readOnly
+                ></textarea>
+                <button
+                  onClick={() => {
+                    document.execCommand('copy');
+                    navigator.clipboard.writeText(suggestedReply);
+                    showToast('Resposta copiada!', 'success');
+                  }}
+                  className="mt-2 bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-200"
+                >
+                  Copiar
+                </button>
+              </div>
+            )}
+          </Modal>
+        </div>
+      );
+    };
+
+    const Reports = ({ showToast }) => {
+      const [selectedRegion, setSelectedRegion] = useState('');
+      const [selectedUsageType, setSelectedUsageType] = useState('');
+      const [reportGenerated, setReportGenerated] = useState(false);
+
+      // Gera um relatório simulado
+      const generateReport = () => {
+        if (!selectedRegion && !selectedUsageType) {
+          showToast('Por favor, selecione uma região ou tipo de uso para gerar o relatório.', 'info');
+          return;
+        }
+        setReportGenerated(true);
+        showToast(`Relatório gerado para Região: ${selectedRegion || 'Todas'}, Tipo de Uso: ${selectedUsageType || 'Todos'}.`, 'success');
+      };
+
+      return (
+        <div className="bg-white p-6 rounded-lg shadow-xl">
+          <h2 className="text-3xl font-bold text-gray-800 mb-6">Relatórios</h2>
+
+          <div className="mb-6 bg-gray-50 p-5 rounded-lg border border-gray-200">
+            <h3 className="text-xl font-semibold text-gray-700 mb-4">Gerar Novo Relatório</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+              <div>
+                <label htmlFor="region" className="block text-sm font-medium text-gray-700 mb-1">Filtrar por Região:</label>
+                <select
+                  id="region"
+                  value={selectedRegion}
+                  onChange={(e) => setSelectedRegion(e.target.value)}
+                  className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm rounded-md"
+                >
+                  <option value="">Todas as Regiões</option>
+                  <option value="rural">Rural</option>
+                  <option value="periferica">Periférica</option>
+                  <option value="urbana">Urbana</option>
+                </select>
+              </div>
+              <div>
+                <label htmlFor="usageType" className="block text-sm font-medium text-gray-700 mb-1">Filtrar por Tipo de Uso:</label>
+                <select
+                  id="usageType"
+                  value={selectedUsageType}
+                  onChange={(e) => setSelectedUsageType(e.target.value)}
+                  className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm rounded-md"
+                >
+                  <option value="">Todos os Tipos</option>
+                  <option value="simulador">Uso do Simulador</option>
+                  <option value="quiz">Participação em Quiz</option>
+                  <option value="conteudo">Consumo de Conteúdo</option>
+                </select>
+              </div>
+            </div>
+            <button
+              onClick={generateReport}
+              className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg shadow-md transition duration-200 mt-4"
+            >
+              Gerar Relatório
+            </button>
+          </div>
+
+          {reportGenerated && (
+            <div className="bg-blue-50 p-6 rounded-lg border border-blue-200 text-blue-800 shadow-md">
+              <h3 className="text-xl font-semibold mb-3">Dados do Relatório Gerado (Simulado)</h3>
+              <p className="mb-2"><strong>Região Selecionada:</strong> {selectedRegion || 'Todas'}</p>
+              <p className="mb-2"><strong>Tipo de Uso Selecionado:</strong> {selectedUsageType || 'Todos'}</p>
+              <p className="text-lg font-bold mt-4">
+                Este é um relatório simulado. Em uma aplicação real, aqui seriam exibidos dados consolidados,
+                gráficos e tabelas com base nos filtros selecionados, como:
+              </p>
+              <ul className="list-disc list-inside mt-2 space-y-1">
+                <li>Número de usuários ativos na região X.</li>
+                <li>Média de simulações realizadas por tipo de usuário Y.</li>
+                <li>Taxa de conclusão de checklists.</li>
+                <li>Regiões com maior engajamento no quiz.</li>
+              </ul>
+            </div>
+          )}
+        </div>
+      );
+    };
+
+    // Componente Principal da Aplicação
+    const App = () => {
+      const [loggedInUser, setLoggedInUser] = useState(null); // Armazena o utilizador autenticado
+      const [userRecordId, setUserRecordId] = useState(null); // Armazena o ID do registo Airtable do utilizador
+      const [activeScreen, setActiveScreen] = useState('splash'); // Começa com a tela de splash
+      const [toastMessage, setToastMessage] = useState('');
+      const [toastType, setToastType] = useState('info');
+
+      // Efeito para verificar o login persistente no localStorage ao carregar a app (APÓS SPLASH)
+      useEffect(() => {
+        const checkPersistentLogin = async () => {
+          const storedEmail = await WebStorage.getItem('loggedInAdminEmail'); // Chave para admin
+          const storedRecordId = await WebStorage.getItem('adminRecordId'); // Chave para admin
+          
+          if (storedEmail && storedRecordId) {
+            setLoggedInUser({ name: storedEmail }); // Nome temporário para mostrar no UI
+            setUserRecordId(storedRecordId);
+            showToast('Login automático. Bem-vindo(a) de volta!', 'success');
+            setActiveScreen('dashboard'); // Se logado, vai para a dashboard
+          } else {
+            setActiveScreen('adminAuth'); // Se não logado, vai para a autenticação do admin
+          }
+        };
+
+        if (activeScreen === 'splash') { // Chama a verificação de login após a splash
+            // Simula um tempo de splash antes de verificar o login
+            setTimeout(() => {
+                checkPersistentLogin();
+            }, 2000); // Exibe a splash por 2 segundos
+        }
+      }, [activeScreen]);
+
+
+      // Função para exibir mensagens Toast
+      const showToast = (message, type = 'info') => {
+        setToastMessage(message);
+        setToastType(type);
+        setTimeout(() => setToastMessage(''), 3000); // Esconde após 3 segundos
+      };
+
+      // Função chamada após autenticação bem-sucedida (login do admin)
+      const handleAuthSuccess = async (name, email, recordId) => {
+        setLoggedInUser({ name: name, email: email });
+        setUserRecordId(recordId);
+        await WebStorage.setItem('loggedInAdminEmail', email); // Salva email do admin
+        await WebStorage.setItem('adminRecordId', recordId); // Salva recordId do admin
+        showToast('Autenticação de admin bem-sucedida!', 'success');
+        setActiveScreen('dashboard'); // Navega para a dashboard após login/registo
+      };
+
+      // Função de Logout do Admin
+      const handleLogout = async () => {
+        await WebStorage.removeItem('loggedInAdminEmail');
+        await WebStorage.removeItem('adminRecordId');
+        setLoggedInUser(null);
+        setUserRecordId(null);
+        setToastMessage('Sessão encerrada.', 'info');
+        setActiveScreen('adminAuth'); // Volta para a AdminLoginPage após logout
+      };
+
+      // Renderiza o conteúdo principal da aplicação (Splash, Auth ou Admin Dashboard)
+      const renderContent = () => {
+        if (activeScreen === 'splash') {
+          return <SplashPage />;
+        } else if (activeScreen === 'adminAuth') { // Nova rota para login do admin
+          return <AdminLoginPage onAuthSuccess={handleAuthSuccess} showToast={showToast} />;
+        } else {
+          // Se estiver logado e não na splash/auth, mostra a barra lateral e o conteúdo da admin
+          return (
+            <div className="flex flex-col md:flex-row min-h-screen bg-gray-100 font-inter">
+              {/* Navegação da Barra Lateral */}
+              <aside className="w-full md:w-64 bg-green-800 text-white p-4 rounded-b-lg md:rounded-r-lg shadow-lg">
+                <h1 className="text-2xl font-bold mb-6 text-center">Admin Biogás</h1>
+                <nav>
+                  <ul>
+                    <NavItem icon={<HomeIcon className="mr-2" />} text="Dashboard" isActive={activeScreen === 'dashboard'} onClick={() => setActiveScreen('dashboard')} />
+                    <NavItem icon={<BookTextIcon className="mr-2" />} text="Gestão de Conteúdo" isActive={activeScreen === 'contentManagement'} onClick={() => setActiveScreen('contentManagement')} />
+                    <NavItem icon={<UsersIcon className="mr-2" />} text="Gestão de Usuários" isActive={activeScreen === 'userManagement'} onClick={() => setActiveScreen('userManagement')} />
+                    <NavItem icon={<MessageSquareIcon className="mr-2" />} text="Dúvidas dos Usuários" isActive={activeScreen === 'userDoubts'} onClick={() => setActiveScreen('userDoubts')} />
+                    <NavItem icon={<BarChartIcon className="mr-2" />} text="Relatórios" isActive={activeScreen === 'reports'} onClick={() => setActiveScreen('reports')} />
+                    
+                    {/* Botão de Logout */}
+                    <li className="mt-8">
+                      <button
+                        onClick={handleLogout}
+                        className="flex items-center w-full p-3 rounded-lg bg-red-600 hover:bg-red-700 font-semibold shadow-md transition-all duration-200"
+                      >
+                        Sair ({loggedInUser.name})
+                      </button>
+                    </li>
+                  </ul>
+                </nav>
+              </aside>
+
+              {/* Área de Conteúdo Principal */}
+              <main className="flex-1 p-6 md:p-8 overflow-auto">
+                {renderScreen()}
+              </main>
+            </div>
+          );
+        }
+      };
+
+      // Renderiza a tela ativa para usuários logados
+      const renderScreen = () => {
+        switch (activeScreen) {
+          case 'dashboard':
+            return <Dashboard />;
+          case 'contentManagement':
+            return <ContentManagement showToast={showToast} />;
+          case 'userManagement':
+            return <UserManagement showToast={showToast} />;
+          case 'userDoubts':
+            return <UserDoubts showToast={showToast} />;
+          case 'reports':
+            return <Reports showToast={showToast} />;
+          default:
+            return <Dashboard />;
+        }
+      };
+
+      return (
+        <React.Fragment>
+          {renderContent()}
+          <Toast message={toastMessage} type={toastType} onClose={() => setToastMessage('')} />
+        </React.Fragment>
+      );
+    };
+
+    // Renderiza o componente principal no DOM
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>
