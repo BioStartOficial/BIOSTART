@@ -701,7 +701,7 @@
             {activeTab === 'educationalTexts' && (
               <>
                 <div className="mb-4">
-                    <label htmlFor="contentText" className="block text-sm font-medium text-gray-700 mb-1">
+                    <label htmlFor="contentText" className="text-sm text-gray-700 whitespace-pre-line">
                         {activeTabConfig.formFields[1]}:
                     </label>
                     <textarea
@@ -712,7 +712,7 @@
                     ></textarea>
                 </div>
                 <div className="w-full mb-4">
-                    <label htmlFor="imageUrl" className="block text-sm font-medium text-gray-700 mb-1">{activeTabConfig.formFields[2]} (opcional):</label>
+                    <label htmlFor="imageUrl" className="text-sm font-medium text-gray-700 mb-1">{activeTabConfig.formFields[2]} (opcional):</label>
                     <input
                         type="url"
                         id="imageUrl"
