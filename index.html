@@ -185,7 +185,6 @@
       );
     };
 
-    // AdminLoginPage: Tela de login e cadastro específica para administradores.
     const AdminLoginPage = ({ onAuthSuccess, showToast }) => {
       const [isRegistering, setIsRegistering] = useState(false);
       const [name, setName] = useState('');
@@ -360,30 +359,44 @@
     };
 
 
-    const Dashboard = () => {
-      // ... (código do Dashboard)
-    };
+    const Dashboard = () => (
+        <div className="bg-white p-6 rounded-lg shadow-xl">
+          <h2 className="text-3xl font-bold text-gray-800 mb-6">Dashboard</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+            <MetricCard title="Acessos Totais" value="12.450" description="Últimos 30 dias" />
+            <MetricCard title="Simulações Realizadas" value="1.870" description="Média diária: 62" />
+            <MetricCard title="Acertos no Quiz" value="85%" description="Taxa de acerto média" />
+          </div>
+          <div className="bg-gray-50 p-6 rounded-lg border border-gray-200">
+            <h3 className="text-xl font-semibold text-gray-700 mb-4">Gráfico de Uso do App (Simulado)</h3>
+            <p className="text-gray-600">Este espaço mostraria gráficos interativos.</p>
+          </div>
+        </div>
+    );
 
     const ContentManagement = ({ showToast }) => {
       // ... (código da Gestão de Conteúdo)
+      return <div>Gestão de Conteúdo (a ser implementado)</div>
     };
 
     const UserManagement = ({ showToast }) => {
       // ... (código da Gestão de Utilizadores)
+      return <div>Gestão de Utilizadores (a ser implementado)</div>
     };
 
     const UserDoubts = ({ showToast }) => {
-        // ... (código da Gestão de Dúvidas)
+      // ... (código da Gestão de Dúvidas)
+      return <div>Dúvidas dos Utilizadores (a ser implementado)</div>
     };
 
     const Reports = ({ showToast }) => {
-        // ... (código dos Relatórios)
+      // ... (código dos Relatórios)
+      return <div>Relatórios (a ser implementado)</div>
     };
 
     // Componente Principal da Aplicação
     const App = () => {
       const [loggedInUser, setLoggedInUser] = useState(null);
-      const [userRecordId, setUserRecordId] = useState(null);
       const [activeScreen, setActiveScreen] = useState('splash');
       const [toastMessage, setToastMessage] = useState('');
       const [toastType, setToastType] = useState('info');
@@ -391,25 +404,18 @@
       useEffect(() => {
         const checkPersistentLogin = async () => {
           const storedEmail = await WebStorage.getItem('loggedInAdminEmail');
-          const storedRecordId = await WebStorage.getItem('adminRecordId');
-          
-          if (storedEmail && storedRecordId) {
-            setLoggedInUser({ name: storedEmail, email: storedEmail });
-            setUserRecordId(storedRecordId);
-            showToast('Login automático. Bem-vindo(a) de volta!', 'success');
+          if (storedEmail) {
+            setLoggedInUser({ name: storedEmail });
             setActiveScreen('dashboard');
           } else {
             setActiveScreen('adminAuth');
           }
         };
-
         if (activeScreen === 'splash') {
-          const timer = setTimeout(() => {
-            checkPersistentLogin();
-          }, 1500);
+          const timer = setTimeout(checkPersistentLogin, 1500);
           return () => clearTimeout(timer);
         }
-      }, []);
+      }, [activeScreen]);
 
 
       const showToast = (message, type = 'info') => {
@@ -420,19 +426,16 @@
 
       const handleAuthSuccess = async (name, email, recordId) => {
         setLoggedInUser({ name: name, email: email });
-        setUserRecordId(recordId);
         await WebStorage.setItem('loggedInAdminEmail', email);
         await WebStorage.setItem('adminRecordId', recordId);
         setActiveScreen('dashboard');
       };
 
       const handleLogout = async () => {
-        if (window.confirm("Tem a certeza que deseja sair?")) {
+        if (window.confirm("Tem certeza que deseja sair?")) {
             await WebStorage.removeItem('loggedInAdminEmail');
             await WebStorage.removeItem('adminRecordId');
             setLoggedInUser(null);
-            setUserRecordId(null);
-            setToastMessage('Sessão encerrada.', 'info');
             setActiveScreen('adminAuth');
         }
       };
